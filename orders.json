@@ -1,0 +1,65 @@
+[
+  {
+    "orderId": 1000,
+    "customer": "ganesh",
+    "email": "aryanmdbraj@gmail.com",
+    "productName": "sprite",
+    "quantity": 3,
+    "totalPrice": 135,
+    "date": "2026-06-03T17:26:21.329Z"
+  },
+  {
+    "orderId": 1001,
+    "customer": "ganesh",
+    "email": "N/A",
+    "productName": "Fresh Apples (1kg)",
+    "quantity": 1,
+    "totalPrice": 150,
+    "date": "2026-06-03T17:32:44.085Z"
+  },
+  {
+    "orderId": 1001,
+    "customer": "ganesh",
+    "email": "N/A",
+    "productName": "Whole Wheat Bread",
+    "quantity": 1,
+    "totalPrice": 45,
+    "date": "2026-06-03T17:32:44.085Z"
+  },
+  {
+    "orderId": 1002,
+    "customer": "ganesh",
+    "email": "N/A",
+    "productName": "Fresh Apples (1kg)",
+    "quantity": 1,
+    "totalPrice": 150,
+    "date": "2026-06-03T17:37:28.788Z"
+  },
+  {
+    "orderId": 1002,
+    "customer": "ganesh",
+    "email": "N/A",
+    "productName": "sprite",
+    "quantity": 1,
+    "totalPrice": 45,
+    "date": "2026-06-03T17:37:28.788Z"
+  },
+  {
+    "orderId": 1004,
+    "customer": "ankit",
+    "email": "N/A",
+    "productName": "Fresh Apples (1kg)",
+    "quantity": 16,
+    "totalPrice": 2400,
+    "date": "2026-06-03T17:49:35.920Z"
+  },
+  {
+    "orderId": 1005,
+    "customer": "Walk-in Customer",
+    "email": "N/A",
+    "productName": "Fresh Apples (1kg)",
+    "quantity": 1,
+    "totalPrice": 150,
+    "date": "2026-06-03T17:50:39.641Z"
+  }
+]

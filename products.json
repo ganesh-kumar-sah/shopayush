@@ -6,7 +6,7 @@
     "brand": "Farm Fresh",
     "buyingPrice": 120,
     "price": 150,
-    "stock": 100,
+    "stock": 31,
     "arrivalDate": "2026-06-01"
   },
   {
@@ -26,7 +26,17 @@
     "brand": "Britannia",
     "buyingPrice": 35,
     "price": 45,
-    "stock": 40,
+    "stock": 39,
     "arrivalDate": "2026-06-03"
+  },
+  {
+    "id": 4,
+    "name": "sprite",
+    "category": "Dairy",
+    "brand": "coca cola",
+    "buyingPrice": 35,
+    "price": 45,
+    "stock": 34,
+    "arrivalDate": "2026-06-04"
   }
 ]

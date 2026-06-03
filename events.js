@@ -101,7 +101,7 @@ const renderPage = (content) => `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grand Plaza Grocery Management</title>
+    <title>Ajay Enterprises Management</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -466,7 +466,7 @@ const renderPage = (content) => `
     <div class="content-wrapper">
         <nav class="navbar">
             <div class="nav-left">
-                <h1><span class="live-dot"></span> Grand Plaza Grocery</h1>
+                <h1><span class="live-dot"></span> Ajay Enterprises</h1>
             </div>
             <div class="nav-right">
                 <a href="#" class="nav-icon"><i class="fas fa-bell"></i><span class="notification-pulse"></span></a>
@@ -496,19 +496,103 @@ router.get('/staff', staffAuth, async (req, res) => {
     const categoriesDocs = dbCategories;
     const categories = categoriesDocs.map(c => c.name);
 
-    const ordersHtml = orders.length > 0 ? orders.map(o => `
-        <div class="bg-transparent backdrop-blur-md border border-white/20 shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-4 rounded-xl mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:bg-white/5 animate-fade-in-up">
-            <div>
-                <div class="font-bold text-white">Order #${o.orderId}</div>
-                <div class="text-sm text-gray-300">Customer: ${o.customer} &bull; Email: ${o.email}</div>
-                <div class="text-sm text-gray-300">Item: ${o.productName} (x${o.quantity})</div>
+    // Calculate total values
+    const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
+    const totalBuyingValue = products.reduce((sum, p) => sum + ((p.buyingPrice || 0) * p.stock), 0);
+    const totalStockItems = products.reduce((sum, p) => sum + p.stock, 0);
+
+    const ordersMap = new Map();
+    orders.forEach(o => {
+        if (!ordersMap.has(o.orderId)) {
+            ordersMap.set(o.orderId, {
+                orderId: o.orderId,
+                customer: o.customer,
+                email: o.email,
+                date: o.date,
+                items: [],
+                totalBill: 0
+            });
+        }
+        const order = ordersMap.get(o.orderId);
+        order.items.push(o);
+        order.totalBill += parseFloat(o.totalPrice) || 0;
+    });
+
+    const uniqueOrders = Array.from(ordersMap.values()).reverse();
+
+    const ordersHtml = uniqueOrders.length > 0 ? uniqueOrders.map(o => `
+        <div class="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-xl mb-3 transition-all hover:bg-white/10 previous-order-card" data-order-id="${o.orderId}" data-customer="${(o.customer || '').replace(/"/g, '&quot;').toLowerCase()}">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <div class="font-bold text-indigo-300">Order #${o.orderId}</div>
+                    <div class="text-xs text-gray-400">${new Date(o.date).toLocaleString('en-IN')}</div>
+                </div>
+                <div class="text-right">
+                    <div class="font-black text-emerald-400">₹${o.totalBill.toLocaleString('en-IN')}</div>
+                    <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase px-2 py-0.5 rounded border border-emerald-500/30">Completed</span>
+                </div>
             </div>
-            <span class="bg-yellow-500/20 text-yellow-300 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border border-yellow-500/30 whitespace-nowrap self-start md:self-auto animate-pulse shadow-[0_0_10px_rgba(234,179,8,0.3)]">Pending Fulfillment</span>
+            <div class="text-sm text-gray-300 mb-2"><i class="fas fa-user text-gray-500"></i> ${o.customer}</div>
+            <div class="text-xs text-gray-400 space-y-1 mb-3">
+                ${o.items.map(item => `
+                    <div class="flex justify-between">
+                        <span>${item.quantity}x ${item.productName}</span>
+                        <span>₹${item.totalPrice}</span>
+                    </div>
+                `).join('')}
+            </div>
+            <!-- Action buttons: Print & Delete -->
+            <div class="flex gap-2 mt-2 pt-3 border-t border-white/10">
+                <a href="/store/bill/${o.orderId}" class="flex-1 block">
+                    <button type="button" class="w-full bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 text-xs font-bold py-1.5 rounded transition-colors flex justify-center items-center gap-1 border border-indigo-500/30">
+                        <i class="fas fa-print"></i> Print Bill
+                    </button>
+                </a>
+                <form action="/store/cancel-order" method="POST" class="flex-1 m-0" onsubmit="return confirm('Cancel this order and restore stock?');">
+                    <input type="hidden" name="orderId" value="${o.orderId}">
+                    <button type="submit" class="w-full bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 text-xs font-bold py-1.5 rounded transition-colors flex justify-center items-center gap-1 border border-amber-500/30">
+                        <i class="fas fa-ban"></i> Cancel
+                    </button>
+                </form>
+                <form action="/store/delete-order" method="POST" class="flex-1 m-0" onsubmit="return confirm('Are you sure you want to delete this order?');">
+                    <input type="hidden" name="orderId" value="${o.orderId}">
+                    <button type="submit" class="w-full bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 text-xs font-bold py-1.5 rounded transition-colors flex justify-center items-center gap-1 border border-rose-500/30">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </form>
+            </div>
         </div>
     `).join('') : `
-        <div class="bg-transparent backdrop-blur-md border border-emerald-500/30 text-emerald-300 p-5 rounded-xl mb-6 flex items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] animate-fade-in-up">
-            <span class="mr-3 text-xl">🎉</span> <span class="font-medium">No pending orders. Everything is up to date!</span>
+        <div class="p-4 text-center text-gray-400 italic">No previous orders found.</div>
+    `;
+
+    const previousOrdersSection = `
+    <div class="category-section-staff animate-fade-in-up bg-transparent backdrop-blur-md rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-indigo-500/30 overflow-hidden mb-8 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(99,102,241,0.12)]">
+      <div class="flex justify-between items-center px-4 md:px-6 py-4 cursor-pointer select-none group bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors" onclick="this.nextElementSibling.classList.toggle('open'); const icon = this.querySelector('.fa-chevron-down'); icon.style.transform = icon.style.transform === 'rotate(180deg)' ? '' : 'rotate(180deg)';">
+        <h2 class="font-bold text-lg text-white flex items-center gap-3">
+            <span class="text-xl text-indigo-300"><i class="fas fa-receipt"></i></span> 
+            Previous Orders (Billing History)
+        </h2>
+        <span class="text-indigo-300 text-sm transition-all duration-300"><i class="fas fa-chevron-down"></i></span>
+      </div>
+      
+      <div class="section-content accordion-content">
+        <div>
+            <div class="p-4 border-t border-white/10 bg-black/20">
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                    </div>
+                    <input type="text" id="billSearchInput" onkeyup="searchBills()" placeholder="Search by Order ID or Customer..." 
+                           class="w-full pl-10 pr-4 py-2 bg-black/30 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 shadow-inner transition-all text-white font-medium placeholder-gray-500 text-sm">
+                </div>
+            </div>
+            <div class="px-4 pb-4 md:px-6 md:pb-6 bg-black/20 max-h-96 overflow-y-auto" id="previousOrdersList">
+              ${ordersHtml}
+            </div>
         </div>
+      </div>
+    </div>
     `;
 
     const getIconForCategory = (cat) => {
@@ -556,11 +640,16 @@ router.get('/staff', staffAuth, async (req, res) => {
             <p class="text-2xl font-black text-emerald-400 leading-none">₹${product.price}</p>
           </div>
           
-          <a href="/store/stock/${product.id}" class="block mt-5 relative z-10">
-            <button class="w-full bg-transparent backdrop-blur-sm border border-white/20 text-gray-200 font-bold py-2.5 rounded-xl text-sm transition-all duration-300 group-hover:border-indigo-400 group-hover:bg-indigo-500/40 group-hover:text-white group-hover:shadow-md flex items-center justify-center gap-2">
-                <i class="fas fa-sync-alt transition-transform group-hover:rotate-180"></i> Update Stock
-            </button>
-          </a>
+          <div class="flex gap-2 mt-5 relative z-10">
+              <a href="/store/stock/${product.id}" class="flex-1 block">
+                <button class="w-full bg-transparent backdrop-blur-sm border border-white/20 text-gray-200 font-bold py-2.5 rounded-xl text-sm transition-all duration-300 hover:border-indigo-400 hover:bg-indigo-500/40 hover:text-white hover:shadow-md flex items-center justify-center gap-2">
+                    <i class="fas fa-sync-alt transition-transform hover:rotate-180"></i> Stock
+                </button>
+              </a>
+              <button onclick="addToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.price}, ${product.stock})" class="flex-1 bg-emerald-500/20 backdrop-blur-sm border border-emerald-500/30 text-emerald-300 font-bold py-2.5 rounded-xl text-sm transition-all duration-300 hover:bg-emerald-500/40 hover:text-white hover:shadow-md flex items-center justify-center gap-2">
+                  <i class="fas fa-cart-plus"></i> Add
+              </button>
+          </div>
         </div>
         `;
         }).join('');
@@ -604,7 +693,7 @@ router.get('/staff', staffAuth, async (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Staff Dashboard - Grand Plaza Grocery</title>
+        <title>Staff Dashboard - Ajay Enterprises</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
@@ -781,7 +870,7 @@ router.get('/staff', staffAuth, async (req, res) => {
             <div class="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5"></div>
             <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2 relative z-10 mb-2 sm:mb-0 text-center">
                 <span class="bg-indigo-500/40 text-white p-2 rounded-xl text-xl shadow-md border border-white/20"><i class="fas fa-store"></i></span> 
-                Grand Plaza Grocery
+                Ajay Enterprises
             </h1>
             <div class="flex flex-wrap justify-center items-center gap-3 relative z-10">
               <a href="/store/owner" class="text-sm font-semibold text-gray-300 hover:text-indigo-300 transition-colors flex items-center gap-1 bg-transparent px-3 py-2 rounded-lg border border-white/20 hover:border-indigo-400/50"><i class="fas fa-chart-line"></i> Owner</a>
@@ -797,11 +886,38 @@ router.get('/staff', staffAuth, async (req, res) => {
             </div>
           </header>
 
-          <div class="mb-4 flex justify-between items-center animate-fade-in-up">
-            <h2 class="text-xl font-bold text-white drop-shadow-md flex items-center gap-2"><i class="fas fa-clipboard-list text-yellow-400"></i> Pending Orders</h2>
+          ${previousOrdersSection}
+
+          <!-- New KPI Grid for Staff -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8 animate-fade-in-up">
+              <div class="bg-transparent backdrop-blur-md border border-white/20 p-6 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] hover:-translate-y-1 transition-transform">
+                  <h3 class="text-gray-300 font-bold mb-2 flex items-center gap-2"><i class="fas fa-boxes text-indigo-400"></i> Total Inventory Value (MRP)</h3>
+                  <p class="text-3xl font-black text-white">₹${totalInventoryValue.toLocaleString('en-IN')}</p>
+              </div>
+              <div class="bg-transparent backdrop-blur-md border border-white/20 p-6 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] hover:-translate-y-1 transition-transform">
+                  <h3 class="text-gray-300 font-bold mb-2 flex items-center gap-2"><i class="fas fa-box-open text-rose-400"></i> Total Inventory (Buy Price)</h3>
+                  <p class="text-3xl font-black text-rose-400 buying-price-display hidden">₹${totalBuyingValue.toLocaleString('en-IN')}</p>
+                  <p class="text-3xl font-black text-gray-500 buying-price-hidden-placeholder">********</p>
+              </div>
+              <div class="bg-transparent backdrop-blur-md border border-white/20 p-6 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] hover:-translate-y-1 transition-transform">
+                  <h3 class="text-gray-300 font-bold mb-2 flex items-center gap-2"><i class="fas fa-tags text-emerald-400"></i> Total Products in Stock</h3>
+                  <p class="text-3xl font-black text-white">${totalStockItems} Items</p>
+              </div>
           </div>
-          
-          ${ordersHtml}
+
+          <!-- New Sales Report Section -->
+          <div class="bg-transparent backdrop-blur-md border border-white/20 shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-6 rounded-2xl mb-8 animate-fade-in-up">
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <h2 class="text-xl font-bold text-white flex items-center gap-2"><i class="fas fa-chart-line text-emerald-400"></i> Sales Report</h2>
+                  <select id="salesFilter" onchange="updateSalesReport()" class="bg-indigo-500/20 text-white border border-indigo-400/30 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="daily" class="bg-gray-900">Day by Day</option>
+                      <option value="monthly" class="bg-gray-900">Month by Month</option>
+                  </select>
+              </div>
+              <div id="salesReportContent" class="text-white">
+                  <!-- Sales data will be rendered here via JS -->
+              </div>
+          </div>
 
           <div class="mt-10 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-transparent backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-[0_4px_20px_rgba(0,0,0,0.03)] animate-fade-in-up">
             <h2 class="text-xl font-bold text-white flex items-center gap-2"><i class="fas fa-boxes text-indigo-400"></i> Inventory Sections</h2>
@@ -824,20 +940,71 @@ router.get('/staff', staffAuth, async (req, res) => {
           </div>
         </div>
 
+        <!-- Floating Cart Button -->
+        <button onclick="toggleCart()" class="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)] flex items-center justify-center text-white text-2xl z-50 transition-transform hover:scale-110">
+            <i class="fas fa-shopping-cart"></i>
+            <span id="cartItemCount" class="absolute -top-2 -right-2 bg-rose-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-[#050510] transition-transform">0</span>
+        </button>
+
+        <!-- Slide-over Cart Panel -->
+        <div id="cartPanel" class="fixed inset-y-0 right-0 w-full sm:w-96 bg-[#0f172a] shadow-2xl border-l border-white/10 transform translate-x-full transition-transform duration-300 z-50 flex flex-col">
+            <div class="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2"><i class="fas fa-shopping-basket text-indigo-400"></i> Current Bill</h2>
+                <button onclick="toggleCart()" class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div id="cartItems" class="flex-1 overflow-y-auto p-6 space-y-4">
+                <p class="text-gray-400 text-center italic mt-10">Cart is empty.</p>
+            </div>
+            <div class="p-6 border-t border-white/10 bg-white/5">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-gray-300 font-bold">Total:</span>
+                    <span class="text-2xl font-black text-emerald-400" id="cartTotal">₹0</span>
+                </div>
+                <form id="checkoutForm" action="/store/checkout" method="POST" onsubmit="return validateCheckout()">
+                    <input type="hidden" name="cartData" id="cartDataInput">
+                    <input type="text" name="customerName" placeholder="Customer Name (Optional)" class="w-full mb-3 px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white">
+                    <input type="email" name="customerEmail" placeholder="Customer Email (Optional)" class="w-full mb-4 px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white">
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors shadow-[0_0_15px_rgba(79,70,229,0.3)]">
+                        Complete Billing
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Cart Overlay -->
+        <div id="cartOverlay" onclick="toggleCart()" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300"></div>
+
         <script>
             function toggleBuyingPrice() {
                 const elements = document.querySelectorAll('.buying-price-display');
+                const placeholders = document.querySelectorAll('.buying-price-hidden-placeholder');
                 const btn = document.getElementById('toggleBuyPriceBtn');
                 let isHidden = btn.innerHTML.includes('Show');
                 
                 elements.forEach(el => {
-                    const icon = el.previousElementSibling.querySelector('i');
                     if (isHidden) {
                         el.classList.remove('hidden');
-                        if(icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
                     } else {
                         el.classList.add('hidden');
-                        if(icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+                    }
+                    
+                    if (el.previousElementSibling && el.previousElementSibling.tagName === 'BUTTON') {
+                        const icon = el.previousElementSibling.querySelector('i');
+                        if (icon) {
+                            if (isHidden) {
+                                icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash');
+                            } else {
+                                icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye');
+                            }
+                        }
+                    }
+                });
+
+                placeholders.forEach(el => {
+                    if (isHidden) {
+                        el.classList.add('hidden');
+                    } else {
+                        el.classList.remove('hidden');
                     }
                 });
                 
@@ -860,6 +1027,183 @@ router.get('/staff', staffAuth, async (req, res) => {
                     icon.classList.remove('fa-eye-slash');
                     icon.classList.add('fa-eye');
                 }
+            }
+
+            let cart = [];
+
+            function toggleCart() {
+                const panel = document.getElementById('cartPanel');
+                const overlay = document.getElementById('cartOverlay');
+                
+                if (panel.classList.contains('translate-x-full')) {
+                    panel.classList.remove('translate-x-full');
+                    overlay.classList.remove('hidden');
+                    setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+                } else {
+                    panel.classList.add('translate-x-full');
+                    overlay.classList.add('opacity-0');
+                    setTimeout(() => overlay.classList.add('hidden'), 300);
+                }
+            }
+
+            function addToCart(id, name, price, maxStock) {
+                if (maxStock <= 0) {
+                    alert("Out of stock!");
+                    return;
+                }
+                const existing = cart.find(i => i.id === id);
+                if (existing) {
+                    if (existing.qty < maxStock) {
+                        existing.qty++;
+                    } else {
+                        alert("Maximum stock reached!");
+                    }
+                } else {
+                    cart.push({ id, name, price, qty: 1, maxStock });
+                }
+                renderCart();
+                
+                const btn = document.getElementById('cartItemCount');
+                btn.classList.add('scale-150');
+                setTimeout(() => btn.classList.remove('scale-150'), 200);
+            }
+
+            function updateCartQty(id, delta) {
+                const item = cart.find(i => i.id === id);
+                if (item) {
+                    item.qty += delta;
+                    if (item.qty > item.maxStock) {
+                        item.qty = item.maxStock;
+                        alert("Maximum stock reached!");
+                    }
+                    if (item.qty <= 0) {
+                        cart = cart.filter(i => i.id !== id);
+                    }
+                }
+                renderCart();
+            }
+
+            function renderCart() {
+                const container = document.getElementById('cartItems');
+                const totalEl = document.getElementById('cartTotal');
+                const countEl = document.getElementById('cartItemCount');
+                const dataInput = document.getElementById('cartDataInput');
+                
+                if (cart.length === 0) {
+                    container.innerHTML = '<p class="text-gray-400 text-center italic mt-10">Cart is empty.</p>';
+                    totalEl.innerText = '₹0';
+                    countEl.innerText = '0';
+                    dataInput.value = '';
+                    return;
+                }
+                
+                let total = 0;
+                let count = 0;
+                let html = '';
+                
+                cart.forEach(item => {
+                    const itemTotal = item.price * item.qty;
+                    total += itemTotal;
+                    count += item.qty;
+                    
+                    html += \`
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center">
+                            <div class="flex-1 pr-2">
+                                <h4 class="text-sm font-bold text-white mb-1">\${item.name}</h4>
+                                <p class="text-xs text-emerald-400 font-bold">₹\${item.price} x \${item.qty} = ₹\${itemTotal}</p>
+                            </div>
+                            <div class="flex items-center gap-2 bg-black/40 rounded-lg p-1">
+                                <button type="button" onclick="updateCartQty(\${item.id}, -1)" class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 rounded transition-colors">-</button>
+                                <span class="text-sm font-bold w-4 text-center">\${item.qty}</span>
+                                <button type="button" onclick="updateCartQty(\${item.id}, 1)" class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 rounded transition-colors">+</button>
+                            </div>
+                        </div>
+                    \`;
+                });
+                
+                container.innerHTML = html;
+                totalEl.innerText = '₹' + total.toLocaleString('en-IN');
+                countEl.innerText = count;
+                dataInput.value = JSON.stringify(cart);
+            }
+
+            function validateCheckout() {
+                if (cart.length === 0) {
+                    alert("Cart is empty! Add items before billing.");
+                    return false;
+                }
+                return true;
+            }
+
+            // Pass orders data from server to client
+            const ordersData = ${JSON.stringify(orders).replace(/</g, '\\u003c')};
+
+            function updateSalesReport() {
+                const filter = document.getElementById('salesFilter').value;
+                const reportContent = document.getElementById('salesReportContent');
+                
+                const grouped = {};
+                let total = 0;
+                
+                ordersData.forEach(o => {
+                    const dateStr = o.date || new Date().toISOString().split('T')[0];
+                    const dateObj = new Date(dateStr);
+                    let key = '';
+                    
+                    if (filter === 'daily') {
+                        key = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                    } else if (filter === 'monthly') {
+                        key = dateObj.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+                    }
+                    
+                    if (!grouped[key]) grouped[key] = 0;
+                    const price = parseFloat(o.totalPrice) || 0;
+                    grouped[key] += price;
+                    total += price;
+                });
+                
+                let html = '<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">';
+                for (const [key, val] of Object.entries(grouped)) {
+                    html += \`
+                        <div class="bg-white/5 border border-white/10 p-4 rounded-xl flex flex-col justify-center">
+                            <span class="font-bold text-gray-400 text-sm uppercase tracking-wider mb-1">\${key}</span>
+                            <span class="text-emerald-400 font-black text-2xl">₹\${val.toLocaleString('en-IN')}</span>
+                        </div>
+                    \`;
+                }
+                html += '</div>';
+                
+                if (Object.keys(grouped).length === 0) {
+                    html = '<p class="text-gray-400 italic">No sales data available yet.</p>';
+                } else {
+                    html += \`
+                        <div class="mt-6 pt-4 border-t border-white/20 flex justify-between items-center">
+                            <span class="text-lg font-bold text-white uppercase tracking-wider">Total Sales</span>
+                            <span class="text-3xl font-black text-emerald-500">₹\${total.toLocaleString('en-IN')}</span>
+                        </div>
+                    \`;
+                }
+                
+                reportContent.innerHTML = html;
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                updateSalesReport();
+            });
+
+            function searchBills() {
+                const input = document.getElementById("billSearchInput").value.toLowerCase();
+                const cards = document.querySelectorAll(".previous-order-card");
+                
+                cards.forEach(card => {
+                    const orderId = card.getAttribute("data-order-id") || "";
+                    const customer = card.getAttribute("data-customer") || "";
+                    if (orderId.includes(input) || customer.includes(input)) {
+                        card.style.display = "block";
+                    } else {
+                        card.style.display = "none";
+                    }
+                });
             }
 
             function searchStaffProducts() {
@@ -902,18 +1246,424 @@ router.get('/staff', staffAuth, async (req, res) => {
     `);
 });
 
+// Checkout Route (Staff)
+router.post('/checkout', staffAuth, (req, res) => {
+    try {
+        const { cartData, customerName, customerEmail } = req.body;
+        if (!cartData) return res.redirect('/store/staff');
+        
+        const cart = JSON.parse(cartData);
+        if (cart.length === 0) return res.redirect('/store/staff');
+        
+        const orders = getOrders();
+        let newOrderId = orders.length > 0 ? Math.max(...orders.map(o => o.orderId || 0)) + 1 : 1000;
+        const now = new Date().toISOString();
+        
+        let totalBill = 0;
+
+        for (const item of cart) {
+            const product = dbProducts.find(p => p.id === item.id);
+            if (product) {
+                product.stock = Math.max(0, product.stock - item.qty);
+            }
+            
+            let itemTotal = item.price * item.qty;
+            totalBill += itemTotal;
+
+            orders.push({
+                orderId: newOrderId,
+                customer: customerName || 'Walk-in Customer',
+                email: customerEmail || 'N/A',
+                productName: item.name,
+                quantity: item.qty,
+                totalPrice: itemTotal,
+                date: now
+            });
+        }
+        
+        saveData();
+        fs.writeFileSync(ordersFile, JSON.stringify(orders, null, 2));
+
+        // Generate Printable Bill
+        const billText = `*AJAY ENTERPRISES*\n------------------------\nReceipt No: #${newOrderId}\nDate: ${new Date(now).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}\nCustomer: ${customerName || 'Walk-in Customer'}\n------------------------\n${cart.map(item => `${item.name}\n  ${item.qty} x ₹${item.price} = ₹${item.price * item.qty}`).join('\n')}\n------------------------\n*TOTAL: ₹${totalBill.toLocaleString('en-IN')}*\n------------------------\nThank you for shopping!`;
+        const encodedBillText = encodeURIComponent(billText);
+
+        const billHtml = `
+            <div class="flex flex-col items-center justify-center mt-10 mb-20 relative z-20 animate-fade-in-up">
+                
+                <!-- Mall POS Thermal Receipt Layout -->
+                <div id="receipt-content" class="bg-white text-black p-6 relative shadow-2xl" style="width: 320px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.4;">
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 900; letter-spacing: 1px;">AJAY ENTERPRISES</h2>
+                        <p style="margin: 0; font-size: 11px;">Bhagwatipur near petrol pump</p>
+                        <p style="margin: 0; font-size: 11px;">Ph: 91425 19730</p>
+                    </div>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <div style="margin-bottom: 10px;">
+                        <p style="margin: 0;"><strong>Receipt :</strong> #${newOrderId}</p>
+                        <p style="margin: 0;"><strong>Date    :</strong> ${new Date(now).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                        <p style="margin: 0;"><strong>Customer:</strong> ${customerName || 'Walk-in Customer'}</p>
+                    </div>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding-bottom: 5px;">Item</th>
+                                <th style="text-align: center; padding-bottom: 5px;">Qty</th>
+                                <th style="text-align: right; padding-bottom: 5px;">Price</th>
+                                <th style="text-align: right; padding-bottom: 5px;">Amt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cart.map(item => `
+                                <tr>
+                                    <td style="padding: 2px 0;">${item.name}</td>
+                                    <td style="text-align: center; padding: 2px 0;">${item.qty}</td>
+                                    <td style="text-align: right; padding: 2px 0;">${item.price}</td>
+                                    <td style="text-align: right; padding: 2px 0;">${item.price * item.qty}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin: 10px 0;">
+                        <span>TOTAL:</span>
+                        <span>₹${totalBill.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <p style="margin: 0;">*** THANK YOU ***</p>
+                        <p style="margin: 0;">Please visit us again</p>
+                    </div>
+                    
+                    <!-- Zig-zag bottom paper effect -->
+                    <div class="no-print absolute bottom-[-10px] left-0 right-0 h-[10px] bg-repeat-x" style="background-image: radial-gradient(circle at 5px 10px, transparent 6px, white 7px); background-size: 10px 10px;"></div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="mt-8 max-w-sm w-full space-y-3 no-print">
+                    <button onclick="window.print()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30">
+                        <i class="fas fa-print"></i> Print Receipt
+                    </button>
+                    <button onclick="shareReceipt()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30">
+                        <i class="fas fa-share-nodes"></i> Share via WhatsApp (Image)
+                    </button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <a href="https://wa.me/?text=${encodedBillText}" target="_blank" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-green-500/30 text-sm">
+                            <i class="fab fa-whatsapp text-lg"></i> Text Msg
+                        </a>
+                        <button onclick="downloadReceipt()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-purple-500/30 text-sm">
+                            <i class="fas fa-download"></i> Save PNG
+                        </button>
+                    </div>
+                    <a href="/store/staff" class="block mt-2">
+                        <button class="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl transition border border-white/20">
+                            Back to Store
+                        </button>
+                    </a>
+                </div>
+
+                <!-- Scripts to handle saving the DOM to an image and sharing -->
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                <script>
+                    async function generateReceiptImage() {
+                        const receipt = document.getElementById('receipt-content');
+                        // Hide zig zag for clean image border
+                        const zigZag = receipt.querySelector('.absolute');
+                        if(zigZag) zigZag.style.display = 'none';
+                        
+                        const canvas = await html2canvas(receipt, { scale: 3, backgroundColor: '#ffffff' });
+                        if(zigZag) zigZag.style.display = 'block';
+                        return canvas;
+                    }
+
+                    async function shareReceipt() {
+                        try {
+                            const canvas = await generateReceiptImage();
+                            canvas.toBlob(async (blob) => {
+                                const file = new File([blob], 'Receipt-${newOrderId}.png', { type: 'image/png' });
+                                
+                                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                                    await navigator.share({
+                                        title: 'Receipt #${newOrderId}',
+                                        text: 'Here is your receipt from Ajay Enterprises.',
+                                        files: [file]
+                                    });
+                                } else {
+                                    alert("Your browser doesn't support direct image sharing. The image will be downloaded instead.");
+                                    downloadReceipt();
+                                }
+                            }, 'image/png');
+                        } catch(e) {
+                            console.log('Share error', e);
+                        }
+                    }
+
+                    async function downloadReceipt() {
+                        const canvas = await generateReceiptImage();
+                        const link = document.createElement('a');
+                        link.download = 'Receipt-${newOrderId}.png';
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }
+                </script>
+
+                <style>
+                    @media print {
+                        .no-print { display: none !important; }
+                        body, html { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+                        .galaxy-bg { display: none !important; }
+                        .content-wrapper { padding: 0 !important; margin: 0 !important; }
+                        nav { display: none !important; }
+                        #receipt-content { box-shadow: none !important; margin: 0 auto !important; border: none !important; }
+                    }
+                </style>
+            </div>
+        `;
+        return res.send(renderPage(billHtml));
+    } catch (e) {
+        console.error("Checkout error:", e);
+        res.redirect('/store/staff');
+    }
+});
+
+// View Previous Bill Route
+router.get('/bill/:id', staffAuth, (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const orders = getOrders().filter(o => o.orderId === orderId);
+        
+        if (orders.length === 0) return res.redirect('/store/staff');
+        
+        const customerName = orders[0].customer;
+        const now = orders[0].date;
+        let totalBill = 0;
+        
+        const cart = orders.map(o => {
+            totalBill += parseFloat(o.totalPrice) || 0;
+            return {
+                name: o.productName,
+                qty: o.quantity,
+                price: (parseFloat(o.totalPrice) / o.quantity) || 0
+            };
+        });
+
+        const billText = `*AJAY ENTERPRISES*\n------------------------\nReceipt No: #${orderId}\nDate: ${new Date(now).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}\nCustomer: ${customerName || 'Walk-in Customer'}\n------------------------\n${cart.map(item => `${item.name}\n  ${item.qty} x ₹${item.price} = ₹${item.price * item.qty}`).join('\n')}\n------------------------\n*TOTAL: ₹${totalBill.toLocaleString('en-IN')}*\n------------------------\nThank you for shopping!`;
+        const encodedBillText = encodeURIComponent(billText);
+
+        const billHtml = `
+            <div class="flex flex-col items-center justify-center mt-10 mb-20 relative z-20 animate-fade-in-up">
+                
+                <!-- Mall POS Thermal Receipt Layout -->
+                <div id="receipt-content" class="bg-white text-black p-6 relative shadow-2xl" style="width: 320px; font-family: 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.4;">
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 900; letter-spacing: 1px;">AJAY ENTERPRISES</h2>
+                        <p style="margin: 0; font-size: 11px;">Bhagwatipur near petrol pump</p>
+                        <p style="margin: 0; font-size: 11px;">Ph: 91425 19730</p>
+                    </div>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <div style="margin-bottom: 10px;">
+                        <p style="margin: 0;"><strong>Receipt :</strong> #${orderId}</p>
+                        <p style="margin: 0;"><strong>Date    :</strong> ${new Date(now).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                        <p style="margin: 0;"><strong>Customer:</strong> ${customerName || 'Walk-in Customer'}</p>
+                    </div>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding-bottom: 5px;">Item</th>
+                                <th style="text-align: center; padding-bottom: 5px;">Qty</th>
+                                <th style="text-align: right; padding-bottom: 5px;">Price</th>
+                                <th style="text-align: right; padding-bottom: 5px;">Amt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cart.map(item => `
+                                <tr>
+                                    <td style="padding: 2px 0;">${item.name}</td>
+                                    <td style="text-align: center; padding: 2px 0;">${item.qty}</td>
+                                    <td style="text-align: right; padding: 2px 0;">${item.price}</td>
+                                    <td style="text-align: right; padding: 2px 0;">${item.price * item.qty}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin: 10px 0;">
+                        <span>TOTAL:</span>
+                        <span>₹${totalBill.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <p style="margin: 0;">*** THANK YOU ***</p>
+                        <p style="margin: 0;">Please visit us again</p>
+                    </div>
+                    
+                    <!-- Zig-zag bottom paper effect -->
+                    <div class="no-print absolute bottom-[-10px] left-0 right-0 h-[10px] bg-repeat-x" style="background-image: radial-gradient(circle at 5px 10px, transparent 6px, white 7px); background-size: 10px 10px;"></div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="mt-8 max-w-sm w-full space-y-3 no-print">
+                    <button onclick="window.print()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30">
+                        <i class="fas fa-print"></i> Print Receipt
+                    </button>
+                    <button onclick="shareReceipt()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30">
+                        <i class="fas fa-share-nodes"></i> Share via WhatsApp (Image)
+                    </button>
+                    <div class="grid grid-cols-2 gap-3">
+                        <a href="https://wa.me/?text=${encodedBillText}" target="_blank" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-green-500/30 text-sm">
+                            <i class="fab fa-whatsapp text-lg"></i> Text Msg
+                        </a>
+                        <button onclick="downloadReceipt()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-purple-500/30 text-sm">
+                            <i class="fas fa-download"></i> Save PNG
+                        </button>
+                    </div>
+                    <a href="/store/staff" class="block mt-2">
+                        <button class="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl transition border border-white/20">
+                            Back to Store
+                        </button>
+                    </a>
+                </div>
+
+                <!-- Scripts to handle saving the DOM to an image and sharing -->
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                <script>
+                    async function generateReceiptImage() {
+                        const receipt = document.getElementById('receipt-content');
+                        // Hide zig zag for clean image border
+                        const zigZag = receipt.querySelector('.absolute');
+                        if(zigZag) zigZag.style.display = 'none';
+                        
+                        const canvas = await html2canvas(receipt, { scale: 3, backgroundColor: '#ffffff' });
+                        if(zigZag) zigZag.style.display = 'block';
+                        return canvas;
+                    }
+
+                    async function shareReceipt() {
+                        try {
+                            const canvas = await generateReceiptImage();
+                            canvas.toBlob(async (blob) => {
+                                const file = new File([blob], 'Receipt-${orderId}.png', { type: 'image/png' });
+                                
+                                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                                    await navigator.share({
+                                        title: 'Receipt #${orderId}',
+                                        text: 'Here is your receipt from Ajay Enterprises.',
+                                        files: [file]
+                                    });
+                                } else {
+                                    alert("Your browser doesn't support direct image sharing. The image will be downloaded instead.");
+                                    downloadReceipt();
+                                }
+                            }, 'image/png');
+                        } catch(e) {
+                            console.log('Share error', e);
+                        }
+                    }
+
+                    async function downloadReceipt() {
+                        const canvas = await generateReceiptImage();
+                        const link = document.createElement('a');
+                        link.download = 'Receipt-${orderId}.png';
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }
+                </script>
+
+                <style>
+                    @media print {
+                        .no-print { display: none !important; }
+                        body, html { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+                        .galaxy-bg { display: none !important; }
+                        .content-wrapper { padding: 0 !important; margin: 0 !important; }
+                        nav { display: none !important; }
+                        #receipt-content { box-shadow: none !important; margin: 0 auto !important; border: none !important; }
+                    }
+                </style>
+            </div>
+        `;
+        return res.send(renderPage(billHtml));
+    } catch (e) {
+        console.error("View Bill error:", e);
+        res.redirect('/store/staff');
+    }
+});
+
+// Cancel Order Route
+router.post('/cancel-order', staffAuth, (req, res) => {
+    try {
+        const orderId = parseInt(req.body.orderId);
+        let orders = getOrders();
+        const orderItems = orders.filter(o => o.orderId === orderId);
+        
+        if (orderItems.length > 0) {
+            // Restore stock
+            for (const item of orderItems) {
+                const product = dbProducts.find(p => p.name === item.productName);
+                if (product) {
+                    product.stock += item.quantity;
+                }
+            }
+            saveData();
+            
+            // Remove order
+            orders = orders.filter(o => o.orderId !== orderId);
+            fs.writeFileSync(ordersFile, JSON.stringify(orders, null, 2));
+        }
+    } catch (e) {
+        console.error("Cancel order error:", e);
+    }
+    res.redirect('/store/staff');
+});
+
+// Delete Order Route
+router.post('/delete-order', staffAuth, (req, res) => {
+    try {
+        const orderId = parseInt(req.body.orderId);
+        let orders = getOrders();
+        orders = orders.filter(o => o.orderId !== orderId);
+        fs.writeFileSync(ordersFile, JSON.stringify(orders, null, 2));
+    } catch (e) {
+        console.error("Delete order error:", e);
+    }
+    res.redirect('/store/staff');
+});
+
 // Owner Dashboard Route
 router.get('/owner', ownerAuth, async (req, res) => {
     let orders = getOrders();
     const products = dbProducts;
     const categoriesDocs = dbCategories;
     const categories = categoriesDocs.map(c => c.name);
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+    
+    // Calculate revenues by date
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+    let todayRevenue = 0, weekRevenue = 0, monthRevenue = 0, yearRevenue = 0, totalRevenue = 0;
+
+    orders.forEach(o => {
+        const orderDate = new Date(o.date);
+        const price = parseFloat(o.totalPrice) || 0;
+        totalRevenue += price;
+        if (orderDate >= startOfDay) todayRevenue += price;
+        if (orderDate >= startOfWeek) weekRevenue += price;
+        if (orderDate >= startOfMonth) monthRevenue += price;
+        if (orderDate >= startOfYear) yearRevenue += price;
+    });
+
     const totalOrders = orders.length;
     const lowStockCount = products.filter(p => p.stock < 10).length;
     const activeCategories = categories.length;
+    const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
+    const totalBuyingValue = products.reduce((sum, p) => sum + ((p.buyingPrice || 0) * p.stock), 0);
     
-    const ordersHtml = orders.length > 0 ? orders.map(o => `
+    const ordersHtml = orders.length > 0 ? [...orders].reverse().map(o => `
         <div class="ticket" style="margin-bottom: 15px;">
             <div class="ticket-main">
                 <div class="event-title" style="font-size: 1.2em;">Order #${o.orderId}</div>
@@ -980,10 +1730,41 @@ router.get('/owner', ownerAuth, async (req, res) => {
 
     res.send(renderPage(`
         <div class="kpi-grid">
-            <div class="kpi-card" style="--glow-color: #10B981;">
-                <div class="kpi-title"><i class="fas fa-wallet"></i> Total Revenue</div>
-                <div class="kpi-value">₹${totalRevenue.toLocaleString('en-IN')}</div>
-                <div class="kpi-trend"><i class="fas fa-arrow-up"></i> 12% vs last month</div>
+            <div class="kpi-card" style="--glow-color: #10B981; grid-column: 1 / -1;">
+                <div class="kpi-title"><i class="fas fa-wallet"></i> Revenue Breakdown</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 10px;">
+                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            Date
+                            <input type="date" id="revDate" onchange="updateRevenues()" style="width: 125px; padding: 2px 5px; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.9em; border-radius: 6px; cursor: pointer;">
+                        </div>
+                        <div id="revDayVal" style="font-size: 1.8em; font-weight: 900; color: white;">...</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            Week
+                            <input type="week" id="revWeek" onchange="updateRevenues()" style="width: 125px; padding: 2px 5px; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.9em; border-radius: 6px; cursor: pointer;">
+                        </div>
+                        <div id="revWeekVal" style="font-size: 1.8em; font-weight: 900; color: white;">...</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            Month
+                            <input type="month" id="revMonth" onchange="updateRevenues()" style="width: 125px; padding: 2px 5px; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.9em; border-radius: 6px; cursor: pointer;">
+                        </div>
+                        <div id="revMonthVal" style="font-size: 1.8em; font-weight: 900; color: white;">...</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            Year
+                            <input type="number" id="revYear" onchange="updateRevenues()" placeholder="YYYY" style="width: 80px; padding: 2px 5px; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.9em; border-radius: 6px; cursor: pointer;">
+                        </div>
+                        <div id="revYearVal" style="font-size: 1.8em; font-weight: 900; color: var(--accent-green);">...</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center;">
+                        <div style="font-size: 0.8em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Lifetime</div>
+                        <div id="revLifetimeVal" style="font-size: 1.8em; font-weight: 900; color: var(--accent-purple);">...</div>
+                    </div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-title"><i class="fas fa-shopping-cart"></i> Total Orders</div>
@@ -999,6 +1780,17 @@ router.get('/owner', ownerAuth, async (req, res) => {
                 <div class="kpi-title"><i class="fas fa-exclamation-triangle"></i> Low Stock Items</div>
                 <div class="kpi-value">${lowStockCount}</div>
                 <div class="kpi-trend" style="color: ${lowStockCount > 0 ? 'var(--accent-red)' : 'var(--text-muted)'};">Items with stock < 10</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title"><i class="fas fa-boxes text-indigo-400"></i> Inventory Value (MRP)</div>
+                <div class="kpi-value">₹${totalInventoryValue.toLocaleString('en-IN')}</div>
+                <div class="kpi-trend" style="color: var(--text-muted);">Total Selling Price</div>
+            </div>
+            <div class="kpi-card" onclick="this.querySelector('.buy-price-val').classList.toggle('hidden'); this.querySelector('.buy-price-placeholder').classList.toggle('hidden');" style="cursor: pointer;">
+                <div class="kpi-title"><i class="fas fa-box-open text-rose-400"></i> Inventory Value (Buy)</div>
+                <div class="kpi-value buy-price-val hidden" style="color: var(--accent-red);">₹${totalBuyingValue.toLocaleString('en-IN')}</div>
+                <div class="kpi-value buy-price-placeholder" style="color: #64748b;">********</div>
+                <div class="kpi-trend" style="color: var(--text-muted);"><i class="fas fa-hand-pointer"></i> Click to reveal</div>
             </div>
         </div>
 
@@ -1019,7 +1811,9 @@ router.get('/owner', ownerAuth, async (req, res) => {
                 </div>
                 <div class="live-orders">
                     <h3><i class="fas fa-stream"></i> Live Orders</h3>
-                    ${ordersHtml}
+                    <div style="max-height: 500px; overflow-y: auto; padding-right: 10px;" class="custom-scrollbar">
+                        ${ordersHtml}
+                    </div>
                 </div>
                  <div style="margin-top: 30px;">
                     <a href="/store/settings"><button style="width:100%; background: #4A5568;"><i class="fas fa-cog"></i> Security Settings</button></a>
@@ -1028,6 +1822,94 @@ router.get('/owner', ownerAuth, async (req, res) => {
         </div>
         
         <script>
+            const ownerOrders = ${JSON.stringify(orders).replace(/</g, '\\u003c')};
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const localISOTime = (new Date(now - offset)).toISOString().slice(0, -1);
+                
+                // Set default inputs to exactly 'today' using client timezone
+                document.getElementById('revDate').value = localISOTime.split('T')[0];
+                document.getElementById('revMonth').value = localISOTime.substring(0, 7);
+                document.getElementById('revYear').value = now.getFullYear();
+                
+                const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+                const dayNum = d.getUTCDay() || 7;
+                d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+                const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+                const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+                document.getElementById('revWeek').value = d.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
+                
+                updateRevenues();
+            });
+
+            function getWeekRange(year, week) {
+                const simple = new Date(year, 0, 1 + (week - 1) * 7);
+                const dow = simple.getDay();
+                const ISOweekStart = simple;
+                if (dow <= 4)
+                    ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+                else
+                    ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+                
+                const ISOweekEnd = new Date(ISOweekStart);
+                ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
+                ISOweekEnd.setHours(23, 59, 59, 999);
+                return { start: ISOweekStart, end: ISOweekEnd };
+            }
+
+            function updateRevenues() {
+                const dateInput = document.getElementById('revDate').value; 
+                const weekInput = document.getElementById('revWeek').value; 
+                const monthInput = document.getElementById('revMonth').value; 
+                const yearInput = document.getElementById('revYear').value; 
+
+                let dayRev = 0, weekRev = 0, monthRev = 0, yearRev = 0, lifeRev = 0;
+
+                let weekStart, weekEnd;
+                if (weekInput && weekInput.includes('-W')) {
+                    const parts = weekInput.split('-W');
+                    const range = getWeekRange(parseInt(parts[0]), parseInt(parts[1]));
+                    weekStart = range.start;
+                    weekEnd = range.end;
+                }
+
+                ownerOrders.forEach(o => {
+                    if (!o.date) return;
+                    const oDate = new Date(o.date);
+                    const price = parseFloat(o.totalPrice) || 0;
+                    lifeRev += price;
+
+                    // Timezone-safe local date calculation
+                    const oOffset = oDate.getTimezoneOffset() * 60000;
+                    const oLocalISO = (new Date(oDate.getTime() - oOffset)).toISOString().slice(0, -1);
+                    const oDateStr = oLocalISO.split('T')[0];
+
+                    if (dateInput && oDateStr === dateInput) {
+                        dayRev += price;
+                    }
+                    
+                    if (weekStart && weekEnd && oDate >= weekStart && oDate <= weekEnd) {
+                        weekRev += price;
+                    }
+
+                    if (monthInput && oDateStr.substring(0, 7) === monthInput) {
+                        monthRev += price;
+                    }
+
+                    if (yearInput && oDate.getFullYear().toString() === yearInput.toString()) {
+                        yearRev += price;
+                    }
+                });
+
+                document.getElementById('revDayVal').innerText = '₹' + dayRev.toLocaleString('en-IN');
+                document.getElementById('revWeekVal').innerText = '₹' + weekRev.toLocaleString('en-IN');
+                document.getElementById('revMonthVal').innerText = '₹' + monthRev.toLocaleString('en-IN');
+                document.getElementById('revYearVal').innerText = '₹' + yearRev.toLocaleString('en-IN');
+                document.getElementById('revLifetimeVal').innerText = '₹' + lifeRev.toLocaleString('en-IN');
+            }
+
             function searchOwnerProducts() {
                 const input = document.getElementById("ownerSearchInput").value.toLowerCase();
                 const sections = document.querySelectorAll(".category-section");

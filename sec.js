@@ -13,7 +13,7 @@ app.get("/",(req,res)=>{
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Grand Plaza Grocery Management</title>
+        <title>Ajay Enterprises Management</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <!-- Font Awesome for Icons -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -43,7 +43,7 @@ app.get("/",(req,res)=>{
                         <i class="fas fa-store text-4xl text-indigo-300"></i>
                     </div>
                     <h1 class="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight mb-3 leading-tight">
-                        <span class="text-white drop-shadow-md">Grand Plaza</span><br/>
+                        <span class="text-white drop-shadow-md">Ajay Enterprises</span><br/>
                         <span class="text-transparent bg-clip-text bg-gradient-to-r from-gray-300 via-gray-100 to-violet-300">Grocery Management</span>
                     </h1>
                     <p class="text-indigo-200/80 text-xs md:text-sm font-bold tracking-[0.2em] uppercase mt-4">Select your portal to continue</p>
