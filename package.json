@@ -5,8 +5,7 @@
   },
   "dependencies": {
     "express": "^5.2.1",
-    "mongoose": "^9.6.3",
-    "mongose": "^0.0.2-security"
+    "mongoose": "^9.6.3"
   },
   "license": "ISC"
 }
