@@ -2,37 +2,41 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose');
 
-const productSchema = new mongoose.Schema({
-    id: Number,
-    name: String,
-    category: String,
-    brand: String,
-    buyingPrice: Number,
-    price: Number,
-    stock: Number,
-    arrivalDate: String
-});
-const Product = mongoose.model('Product', productSchema);
+const productsFile = path.join(__dirname, 'products.json');
+const categoriesFile = path.join(__dirname, 'categories.json');
 
-const categorySchema = new mongoose.Schema({ name: String });
-const Category = mongoose.model('Category', categorySchema);
+let dbProducts = [];
+let dbCategories = [];
+
+function loadData() {
+    if (fs.existsSync(productsFile)) {
+        try { dbProducts = JSON.parse(fs.readFileSync(productsFile, 'utf8')); } catch (err) {}
+    }
+    if (fs.existsSync(categoriesFile)) {
+        try { dbCategories = JSON.parse(fs.readFileSync(categoriesFile, 'utf8')); } catch (err) {}
+    }
+}
+function saveData() {
+    fs.writeFileSync(productsFile, JSON.stringify(dbProducts, null, 2));
+    fs.writeFileSync(categoriesFile, JSON.stringify(dbCategories, null, 2));
+}
+loadData();
 
 // Seed initial data if DB is empty
-async function seedDatabase() {
-    const productCount = await Product.countDocuments();
-    if (productCount === 0) {
-        await Product.insertMany([
+function seedDatabase() {
+    if (dbProducts.length === 0) {
+        dbProducts = [
             { id: 1, name: 'Fresh Apples (1kg)', category: 'Fruits & Veggies', brand: 'Farm Fresh', buyingPrice: 120, price: 150, stock: 100, arrivalDate: '2026-06-01' },
             { id: 2, name: 'Whole Milk (1L)', category: 'Dairy', brand: 'Amul', buyingPrice: 50, price: 65, stock: 50, arrivalDate: '2026-06-02' },
             { id: 3, name: 'Whole Wheat Bread', category: 'Bakery', brand: 'Britannia', buyingPrice: 35, price: 45, stock: 40, arrivalDate: '2026-06-03' }
-        ]);
+        ];
+        saveData();
     }
-    const categoryCount = await Category.countDocuments();
-    if (categoryCount === 0) {
+    if (dbCategories.length === 0) {
         const initialCategories = ['Fruits & Veggies', 'Dairy', 'Bakery', 'Atta, Rice & Dals', 'Drinks', 'Household'];
-        await Category.insertMany(initialCategories.map(name => ({ name })));
+        dbCategories = initialCategories.map(name => ({ name }));
+        saveData();
     }
 }
 seedDatabase();
@@ -488,8 +492,8 @@ router.get('/', (req, res) => {
 // Staff Dashboard Route
 router.get('/staff', staffAuth, async (req, res) => {
     let orders = getOrders();
-    const products = await Product.find({});
-    const categoriesDocs = await Category.find({});
+    const products = dbProducts;
+    const categoriesDocs = dbCategories;
     const categories = categoriesDocs.map(c => c.name);
 
     const ordersHtml = orders.length > 0 ? orders.map(o => `
@@ -901,8 +905,8 @@ router.get('/staff', staffAuth, async (req, res) => {
 // Owner Dashboard Route
 router.get('/owner', ownerAuth, async (req, res) => {
     let orders = getOrders();
-    const products = await Product.find({});
-    const categoriesDocs = await Category.find({});
+    const products = dbProducts;
+    const categoriesDocs = dbCategories;
     const categories = categoriesDocs.map(c => c.name);
     const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
     const totalOrders = orders.length;
@@ -1081,15 +1085,18 @@ router.get('/add-category', ownerAuth, (req, res) => {
 router.post('/add-category', ownerAuth, async (req, res) => {
     const { newCategory } = req.body;
     if (newCategory) {
-        const exists = await Category.findOne({ name: newCategory });
-        if (!exists) await Category.create({ name: newCategory });
+        const exists = dbCategories.find(c => c.name === newCategory);
+        if (!exists) {
+            dbCategories.push({ name: newCategory });
+            saveData();
+        }
     }
     res.redirect('/store/owner');
 });
 
 // Add Product Routes
 router.get('/add', ownerAuth, async (req, res) => {
-    const categoriesDocs = await Category.find({});
+    const categoriesDocs = dbCategories;
     const categories = categoriesDocs.map(c => c.name);
     const categoryOptions = categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
     res.send(renderPage(`
@@ -1123,18 +1130,21 @@ router.get('/add', ownerAuth, async (req, res) => {
 
 router.post('/add', ownerAuth, async (req, res) => {
     const { name, category, brand, buyingPrice, price, arrivalDate, stock } = req.body;
-    const maxProduct = await Product.findOne().sort('-id');
-    const newId = maxProduct ? maxProduct.id + 1 : 1;
-    await Product.create({ id: newId, name, category, brand, buyingPrice: parseInt(buyingPrice), price: parseInt(price), stock: parseInt(stock), arrivalDate });
+    let newId = 1;
+    if (dbProducts.length > 0) {
+        newId = Math.max(...dbProducts.map(p => p.id)) + 1;
+    }
+    dbProducts.push({ id: newId, name, category, brand, buyingPrice: parseInt(buyingPrice), price: parseInt(price), stock: parseInt(stock), arrivalDate });
+    saveData();
     res.redirect('/store/owner');
 });
 
 // Edit Product Routes (Owner)
 router.get('/edit/:id', ownerAuth, async (req, res) => {
-    const product = await Product.findOne({ id: parseInt(req.params.id) });
+    const product = dbProducts.find(p => p.id === parseInt(req.params.id));
     if (!product) return res.redirect('/store/owner');
     
-    const categoriesDocs = await Category.find({});
+    const categoriesDocs = dbCategories;
     const categories = categoriesDocs.map(c => c.name);
     const categoryOptions = categories.map(cat => `<option value="${cat}" ${product.category === cat ? 'selected' : ''}>${cat}</option>`).join('');
 
@@ -1169,13 +1179,17 @@ router.get('/edit/:id', ownerAuth, async (req, res) => {
 
 router.post('/edit', ownerAuth, async (req, res) => {
     const { id, name, category, brand, buyingPrice, price, arrivalDate, stock } = req.body;
-    await Product.findOneAndUpdate({ id: parseInt(id) }, { name, category, brand, buyingPrice: parseInt(buyingPrice), price: parseInt(price), stock: parseInt(stock), arrivalDate });
+    const productIndex = dbProducts.findIndex(p => p.id === parseInt(id));
+    if (productIndex !== -1) {
+        dbProducts[productIndex] = { ...dbProducts[productIndex], name, category, brand, buyingPrice: parseInt(buyingPrice), price: parseInt(price), stock: parseInt(stock), arrivalDate };
+        saveData();
+    }
     res.redirect('/store/owner');
 });
 
 // Update Stock Routes (Staff)
 router.get('/stock/:id', staffAuth, async (req, res) => {
-    const product = await Product.findOne({ id: parseInt(req.params.id) });
+    const product = dbProducts.find(p => p.id === parseInt(req.params.id));
     if (!product) return res.redirect('/store/staff');
     
     res.send(`
@@ -1219,14 +1233,19 @@ router.get('/stock/:id', staffAuth, async (req, res) => {
 
 router.post('/stock', staffAuth, async (req, res) => {
     const { id, stock } = req.body;
-    await Product.findOneAndUpdate({ id: parseInt(id) }, { stock: parseInt(stock) });
+    const product = dbProducts.find(p => p.id === parseInt(id));
+    if (product) {
+        product.stock = parseInt(stock);
+        saveData();
+    }
     res.redirect('/store/staff');
 });
 
 // Delete Product Route
 router.post('/delete', ownerAuth, async (req, res) => {
     const { id } = req.body;
-    await Product.findOneAndDelete({ id: parseInt(id) });
+    dbProducts = dbProducts.filter(p => p.id !== parseInt(id));
+    saveData();
     res.redirect('/store/owner');
 });
 
@@ -1234,8 +1253,9 @@ router.post('/delete', ownerAuth, async (req, res) => {
 router.post('/delete-category', ownerAuth, async (req, res) => {
     const { categoryName } = req.body;
     if (categoryName) {
-        await Category.findOneAndDelete({ name: categoryName });
-        await Product.deleteMany({ category: categoryName }); // Deletes all items inside this section as well
+        dbCategories = dbCategories.filter(c => c.name !== categoryName);
+        dbProducts = dbProducts.filter(p => p.category !== categoryName);
+        saveData();
     }
     res.redirect('/store/owner');
 });

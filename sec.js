@@ -1,6 +1,5 @@
 const http=require('http');
 const express=require('express');
-const mongoose = require('mongoose');
 const eventsRouter=require('./events');
 const app=express();
 
@@ -73,11 +72,6 @@ app.get("/",(req,res)=>{
 
 
 app.use("/store",eventsRouter);
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/ayushshop')
-    .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
 
 const PORT = process.env.PORT || 8000;
 const server = http.createServer(app);
