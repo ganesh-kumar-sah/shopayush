@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "dev": "node --watch sec.js",
+    "start": "node sec.js"
+  },
   "dependencies": {
     "express": "^5.2.1",
     "mongoose": "^9.6.3",
